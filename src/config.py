@@ -2,7 +2,7 @@ import os
 from dotenv import load_dotenv
 
 # Load .env file
-ENV_PATH = "/Users/stche16/Library/CloudStorage/OneDrive-IKEA/桌面/working/sourcecode/tools/auto_prompt_refiner/sys_init/.env"
+ENV_PATH = ""
 load_dotenv(ENV_PATH)
 
 class Config:
@@ -10,8 +10,8 @@ class Config:
     GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
     
     # Vertex AI Config
-    VERTEX_CREDENTIALS_PATH = "/Users/stche16/Library/CloudStorage/OneDrive-IKEA/桌面/working/sourcecode/tools/auto_prompt_refiner/sys_init/ingka-aid-content-prod-66dcf7e765f1.json"
-    VERTEX_PROJECT_ID = "ingka-aid-content-prod" # Extracted from json content
+    VERTEX_CREDENTIALS_PATH = ""
+    VERTEX_PROJECT_ID = "" # Extracted from json content
     VERTEX_LOCATION = "us-central1" # Default assumption, can be adjusted if needed
     
     # Models
