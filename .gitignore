@@ -1,0 +1,21 @@
+# System Initialization & Secrets
+sys_init/
+.env
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+env/
+venv/
+.venv/
+
+# IDE
+.vscode/
+.idea/
+.DS_Store
+
+# Output Tasks (Optional: uncomment if you want to keep tasks local only)
+# tasks/
