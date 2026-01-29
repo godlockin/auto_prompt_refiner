@@ -2,7 +2,9 @@ import os
 from dotenv import load_dotenv
 
 # Load .env file
-ENV_PATH = ""
+# Load .env file
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+ENV_PATH = os.path.join(BASE_DIR, ".env")
 load_dotenv(ENV_PATH)
 
 class Config:
@@ -10,8 +12,9 @@ class Config:
     GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
     
     # Vertex AI Config
-    VERTEX_CREDENTIALS_PATH = ""
-    VERTEX_PROJECT_ID = "" # Extracted from json content
+    # Default to None if not found, or relative path if exists
+    VERTEX_CREDENTIALS_PATH = os.getenv("VERTEX_CREDENTIALS_PATH") or os.path.join(BASE_DIR, "sys_init", "vertex-credentials.json")
+    VERTEX_PROJECT_ID = os.getenv("VERTEX_PROJECT_ID") or ""
     VERTEX_LOCATION = "us-central1" # Default assumption, can be adjusted if needed
     
     # Models

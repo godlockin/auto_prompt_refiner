@@ -1,7 +1,6 @@
 # System Initialization & Secrets
-sys_init/.env
+.env
 sys_init/*.json
-# sys_init/  <-- Commented out to allow committing blueprints and examples
 
 # Python
 __pycache__/
@@ -13,11 +12,16 @@ env/
 venv/
 .venv/
 
+# Node / Cloudflare
+node_modules/
+.wrangler/
+.DS_Store
+
 # IDE
 .vscode/
 .idea/
-.DS_Store
 
 # Output Tasks
 tasks/*
 !tasks/.gitkeep
+

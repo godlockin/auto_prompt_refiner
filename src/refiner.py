@@ -15,7 +15,7 @@ class PromptRefiner:
         """Loads prompts from the unified JSON file."""
         try:
             base_path = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-            prompt_path = os.path.join(base_path, "sys_init", "prompts.json")
+            prompt_path = os.path.join(base_path, "data", "prompts.json")
             with open(prompt_path, "r", encoding="utf-8") as f:
                 return json.load(f)
         except Exception as e:
