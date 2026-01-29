@@ -17,5 +17,6 @@ venv/
 .idea/
 .DS_Store
 
-# Output Tasks (Optional: uncomment if you want to keep tasks local only)
-# tasks/
+# Output Tasks
+tasks/*
+!tasks/.gitkeep
