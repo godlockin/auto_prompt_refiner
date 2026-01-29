@@ -1,6 +1,7 @@
 # System Initialization & Secrets
-sys_init/
-.env
+sys_init/.env
+sys_init/*.json
+# sys_init/  <-- Commented out to allow committing blueprints and examples
 
 # Python
 __pycache__/
