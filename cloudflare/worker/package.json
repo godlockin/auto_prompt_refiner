@@ -1,0 +1,13 @@
+[package]
+name = "prompt-refiner-worker"
+version = "0.0.1"
+description = "Synthesis Prime Backend on Cloudflare Workers"
+
+[dependencies]
+hono = "^4.0.0"
+@google/generative-ai = "^0.2.0"
+
+[devDependencies]
+@cloudflare/workers-types = "^4.20240208.0"
+typescript = "^5.0.0"
+wrangler = "^3.0.0"

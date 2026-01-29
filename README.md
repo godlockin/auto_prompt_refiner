@@ -35,9 +35,6 @@ graph TD
     Refiner
     end
     
-    subgraph "Engine Layer"
-    Gemini3[Gemini 3.0 Pro] --Fallback--> Vertex[Vertex AI]
-    end
 ```
 
 ## 🚀 快速开始 (Quick Start)

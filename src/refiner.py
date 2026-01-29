@@ -1,5 +1,6 @@
 import json
 import logging
+import os
 from src.llm_client import LLMClient
 
 logger = logging.getLogger(__name__)
@@ -8,8 +9,21 @@ class PromptRefiner:
     def __init__(self):
         self.llm = LLMClient()
         self.max_rounds = 3
+        self.prompts = self._load_prompts()
+
+    def _load_prompts(self):
+        """Loads prompts from the unified JSON file."""
+        try:
+            base_path = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+            prompt_path = os.path.join(base_path, "sys_init", "prompts.json")
+            with open(prompt_path, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except Exception as e:
+            logger.error(f"Failed to load prompts.json: {e}")
+            raise
 
     def run_refinement_stream(self, user_prompt: str):
+        # ... (same as before) ...
         """
         Executes the Synthesis Prime refinement protocol as a generator.
         Yields (current_stage_message, history_list, current_draft).
@@ -55,8 +69,6 @@ class PromptRefiner:
         """
         Legacy synchronous method.
         """
-        # ... existing implementation wrapper if needed, but we'll use stream mostly
-        # Re-implement using stream to avoid code duplication
         final_draft = ""
         final_history = []
         for _, hist, draft in self.run_refinement_stream(user_prompt):
@@ -70,57 +82,21 @@ class PromptRefiner:
         }
 
     def _agent_strategist(self, original_prompt: str) -> str:
-        sys_prompt = """
-        You are the **Chief Cognitive Architect** of the Synthesis Prime system.
-        Your goal is to analyze the user's input prompt and determine the best optimization strategy.
-        
-        Output Analysis:
-        1. **Information Density**: High/Low.
-        2. **Core Intent**: What is the user really trying to achieve?
-        3. **Missing Variables**: What context is missing?
-        4. **Recommended Strategy**: 
-           - Mode A (Cognitive Handshake) or Mode B (Deep Delivery)?
-           - Specific Techniques: CoT, Few-Shot, Role-Play, etc.
-        """
-        return self.llm.generate_content(f"{sys_prompt}\n\nUser Input: {original_prompt}")
+        p = self.prompts["strategist"]
+        user_msg = p["user_template"].format(prompt=original_prompt)
+        return self.llm.generate_content(f"{p['system']}\n\n{user_msg}")
 
     def _agent_architect(self, original_prompt: str, strategy: str) -> str:
-        sys_prompt = """
-        You are the **Lead Prompt Engineer**. Based on the strategy provided, create the FIRST DRAFT of the System Prompt.
-        
-        Follow the **Synthesis Prime Standards**:
-        1. **Structure Obsession**: Use Markdown H1/H2 headers (## Role, ## Mission, ## Workflow, ## Constraints).
-        2. **Language Lock**: Use Simplified Chinese for explanations, English for code/variables if needed.
-        3. **Mechanism**: Implement the strategy (e.g., if CoT is requested, add <thinking> tags).
-        """
-        return self.llm.generate_content(f"{sys_prompt}\n\nStrategy:\n{strategy}\n\nOriginal Request:\n{original_prompt}")
+        p = self.prompts["architect"]
+        user_msg = p["user_template"].format(strategy=strategy, prompt=original_prompt)
+        return self.llm.generate_content(f"{p['system']}\n\n{user_msg}")
 
     def _agent_critic(self, original_prompt: str, current_draft: str, history: list) -> str:
-        sys_prompt = """
-        You are the **Adversarial Critic (Red Team)**.
-        Your job is to TEAR APART the current prompt draft. Find every weakness.
-        
-        Check for:
-        1. **Ambiguity**: Is anything open to interpretation?
-        2. **Hallucination Risks**: Are there guardrails?
-        3. **Constraint Loopholes**: Can the user bypass rules?
-        4. **Alignment**: Does it meet the original intent?
-        
-        If the prompt is SOTA (State-of-the-Art) and perfect, output "NO_ISSUES_FOUND".
-        Otherwise, list specific, actionable changes.
-        """
-        return self.llm.generate_content(f"{sys_prompt}\n\nOriginal Request:\n{original_prompt}\n\nCurrent Draft:\n{current_draft}")
+        p = self.prompts["critic"]
+        user_msg = p["user_template"].format(prompt=original_prompt, draft=current_draft)
+        return self.llm.generate_content(f"{p['system']}\n\n{user_msg}")
 
     def _agent_refiner(self, original_prompt: str, current_draft: str, critique: str) -> str:
-        sys_prompt = """
-        You are the **Senior Optimization Specialist**.
-        Refine the prompt based on the Critic's feedback.
-        
-        Rules:
-        1. Address EVERY point in the critique.
-        2. Maintain the structural integrity (Markdown).
-        3. Do not regress on previous improvements.
-        
-        Output the FULL, UPDATED prompt only.
-        """
-        return self.llm.generate_content(f"{sys_prompt}\n\nCritique:\n{critique}\n\nCurrent Draft:\n{current_draft}")
+        p = self.prompts["refiner"]
+        user_msg = p["user_template"].format(critique=critique, draft=current_draft)
+        return self.llm.generate_content(f"{p['system']}\n\n{user_msg}")
