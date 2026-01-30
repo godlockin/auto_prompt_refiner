@@ -71,10 +71,10 @@ class LLMClient:
             except Exception as e:
                 logger.error(f"Fallback model failed: {e}")
                 
-                # Double Fallback: Try a known stable model if 2.5 fails (e.g., gemini-1.5-pro)
+                # Double Fallback: Try a known stable model if 2.5 fails
                 try:
-                    logger.info("Attempting generation with Emergency Backup (gemini-1.5-pro-001)...")
-                    model = GenerativeModel("gemini-1.5-pro-001")
+                    logger.info("Attempting generation with Emergency Backup (gemini-2.5-pro)...")
+                    model = GenerativeModel("gemini-2.5-pro")
                     response = model.generate_content(prompt)
                     return response.text
                 except Exception as e2:

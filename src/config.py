@@ -18,14 +18,9 @@ class Config:
     VERTEX_LOCATION = "us-central1" # Default assumption, can be adjusted if needed
     
     # Models
-    GEMINI_MODEL_PRIMARY = "gemini-3-pro-preview" # As requested
-    GEMINI_MODEL_FALLBACK = "gemini-2.5-pro" # Trying a known model name for fallback or 1.5 pro. 
-    # User said: "if failure try downgrade use vertexai gemini-2.5-pro". 
-    # Note: "gemini-2.5-pro" might not exist yet, might mean 1.5 or 2.0. I will use the string provided by user but add error handling.
-    # Actually, let's use what the user asked for: gemini-2.5-pro. If it fails, I might need to correct it.
-    # But for safety, I will check if 2.5 exists. As of early 2025, 2.0 is the latest preview. 
-    # Maybe user means 1.5 pro? or 2.0 pro? 
-    # I will stick to user request but fallback to "gemini-1.5-pro" if 2.5 fails.
+    # User requested strictly gemini-2.5-pro
+    GEMINI_MODEL_PRIMARY = os.getenv("GEMINI_MODEL", "gemini-2.5-pro") 
+    GEMINI_MODEL_FALLBACK = "gemini-2.5-pro" # Fallback also locked to 2.5 as requested
     VERTEX_MODEL_FALLBACK = "gemini-2.5-pro" 
 
     # Paths

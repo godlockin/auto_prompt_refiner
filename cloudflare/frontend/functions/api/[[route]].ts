@@ -24,15 +24,26 @@ const app = new Hono<{ Bindings: Bindings }>();
 
 // Helper for Model Generation with Fallback
 async function generateWithFallback(env: Bindings, prompt: string): Promise<string> {
+    const modelName = env.GEMINI_MODEL || 'gemini-2.5-pro';
+    const keyPreview = env.GOOGLE_API_KEY ? `${env.GOOGLE_API_KEY.slice(0, 4)}...${env.GOOGLE_API_KEY.slice(-4)}` : 'MISSING';
+
     // 1. Try Primary (Gemini AI Studio)
     try {
         if (!env.GOOGLE_API_KEY) throw new Error("Missing GOOGLE_API_KEY");
+
+        console.log(`[DEBUG] Initializing Gemini. Model: ${modelName}, Key: ${keyPreview}`);
+
         const genAI = new GoogleGenerativeAI(env.GOOGLE_API_KEY);
-        const model = genAI.getGenerativeModel({ model: env.GEMINI_MODEL || 'gemini-2.0-flash' });
+        const model = genAI.getGenerativeModel({ model: modelName });
+
+        console.log(`[DEBUG] Calling generateContent...`);
         const result = await model.generateContent(prompt);
+        console.log(`[DEBUG] Response received.`);
+
         return result.response.text();
     } catch (primaryError: any) {
-        console.error("Primary Model Failed:", primaryError);
+        console.error("Primary Model Failed Full Error:", JSON.stringify(primaryError, Object.getOwnPropertyNames(primaryError)));
+        console.error("Primary Model Failed Message:", primaryError.message);
 
         // 2. Try Fallback (Vertex AI)
         if (env.VERTEX_PROJECT_ID && env.VERTEX_CLIENT_EMAIL && env.VERTEX_PRIVATE_KEY) {
@@ -45,13 +56,14 @@ async function generateWithFallback(env: Bindings, prompt: string): Promise<stri
                     location: env.VERTEX_LOCATION
                 });
                 // Use a known stable model for fallback
-                return await vertex.generateContent('gemini-1.5-pro-preview-0409', prompt);
+                return await vertex.generateContent('gemini-2.5-pro', prompt);
             } catch (fallbackError: any) {
                 throw new Error(`All models failed. Primary: ${primaryError.message}. Fallback: ${fallbackError.message}`);
             }
         }
 
-        throw primaryError;
+        // Re-throw with more context if no fallback
+        throw new Error(`Gemini API Failed (${modelName}): ${primaryError.message || primaryError}`);
     }
 }
 
@@ -73,76 +85,107 @@ app.use('/api/*', async (c, next) => {
 });
 
 // 2. Core Logic: Refinement Protocol (Streaming)
+// Helper to check critical env vars
+function checkEnv(env: Bindings) {
+    const missing = [];
+    if (!env.GOOGLE_API_KEY) missing.push("GOOGLE_API_KEY");
+    if (!env.TASKS) missing.push("TASKS (KV Binding)");
+    return missing;
+}
+
 app.post('/api/refine', async (c) => {
-    const { prompt } = await c.req.json<{ prompt: string }>();
+    try {
+        const { prompt } = await c.req.json<{ prompt: string }>();
+        if (!prompt) return c.json({ error: 'Prompt is required' }, 400);
 
-    if (!prompt) return c.json({ error: 'Prompt is required' }, 400);
-    if (!c.env.GOOGLE_API_KEY) return c.json({ error: 'Server Config Error: Missing API Key' }, 500);
-
-    // Stream Response
-    const { readable, writable } = new TransformStream();
-    const writer = writable.getWriter();
-    const encoder = new TextEncoder();
-
-    // Background processing
-    c.executionCtx.waitUntil((async () => {
-        try {
-            const log = (msg: string) => writer.write(encoder.encode(JSON.stringify({ type: 'log', content: msg }) + '\n'));
-            const chunk = (msg: string) => writer.write(encoder.encode(JSON.stringify({ type: 'chunk', content: msg }) + '\n'));
-
-            await log("🔍 Phase 1: Inception & Strategy Analysis...");
-
-            // Step 1: Strategy
-            const p1 = prompts.strategist;
-            const strategyPrompt = `${p1.system}\n\n${p1.user_template.replace('{prompt}', prompt)}`;
-
-            const strategyText = await generateWithFallback(c.env, strategyPrompt);
-            await log(`✅ Strategy Developed: ${strategyText.slice(0, 50)}...`);
-
-            // Step 2: Draft
-            await log("Phase 2: Drafting Initial Prompt...");
-            const p2 = prompts.architect;
-            const draftPrompt = `${p2.system}\n\n${p2.user_template.replace('{strategy}', strategyText).replace('{prompt}', prompt)}`;
-
-            const currentDraft = await generateWithFallback(c.env, draftPrompt);
-            await chunk(currentDraft); // Send draft preview
-
-            // Step 3: Refinement (Simplified 1 round for demo speed, can be loop)
-            await log("Phase 3: Adversarial Refinement (Round 1)...");
-            const p3 = prompts.critic;
-            const critiquePrompt = `${p3.system}\n\n${p3.user_template.replace('{prompt}', prompt).replace('{draft}', currentDraft)}`;
-
-            const critique = await generateWithFallback(c.env, critiquePrompt);
-            await log("🤔 Critic Feedback Received. Optimizing...");
-
-            const p4 = prompts.refiner;
-            const refinePrompt = `${p4.system}\n\n${p4.user_template.replace('{critique}', critique).replace('{draft}', currentDraft)}`;
-
-            const finalDraft = await generateWithFallback(c.env, refinePrompt);
-
-            await log("🏆 Perfection Achieved. Finalizing...");
-            await writer.write(encoder.encode(JSON.stringify({ type: 'final', content: finalDraft }) + '\n'));
-
-            // Save to KV
-            const taskId = Date.now().toString();
-            await c.env.TASKS.put(taskId, JSON.stringify({
-                id: taskId,
-                original: prompt,
-                final: finalDraft,
-                strategy: strategyText,
-                timestamp: new Date().toISOString()
-            }));
-
-        } catch (e: any) {
-            await writer.write(encoder.encode(JSON.stringify({ type: 'error', content: e.message }) + '\n'));
-        } finally {
-            await writer.close();
+        // Pre-flight check
+        const missingVars = checkEnv(c.env);
+        if (missingVars.length > 0) {
+            return c.json({ error: `Server Configuration Error: Missing ${missingVars.join(', ')}` }, 500);
         }
-    })());
 
-    return new Response(readable, {
-        headers: { 'Content-Type': 'text/event-stream' }
-    });
+        // Stream Response
+        const { readable, writable } = new TransformStream();
+        const writer = writable.getWriter();
+        const encoder = new TextEncoder();
+
+        // Background processing
+        c.executionCtx.waitUntil((async () => {
+            try {
+                const log = (msg: string) => writer.write(encoder.encode(JSON.stringify({ type: 'log', content: msg }) + '\n'));
+                const chunk = (msg: string) => writer.write(encoder.encode(JSON.stringify({ type: 'chunk', content: msg }) + '\n'));
+
+                await log("🔍 Phase 1: Inception & Strategy Analysis...");
+                await log(`[Setup] Model: ${c.env.GEMINI_MODEL || 'gemini-2.5-pro'}`);
+                await log(`[Setup] Key: ${c.env.GOOGLE_API_KEY ? c.env.GOOGLE_API_KEY.slice(0, 4) + '...' : 'MISSING'}`);
+
+                // Step 1: Strategy
+                const p1 = prompts.strategist;
+                const strategyPrompt = `${p1.system}\n\n${p1.user_template.replace('{prompt}', prompt)}`;
+
+                const strategyText = await generateWithFallback(c.env, strategyPrompt);
+                await log(`✅ Strategy Developed: ${strategyText.slice(0, 50)}...`);
+
+                // Step 2: Draft
+                await log("Phase 2: Drafting Initial Prompt...");
+                const p2 = prompts.architect;
+                const draftPrompt = `${p2.system}\n\n${p2.user_template.replace('{strategy}', strategyText).replace('{prompt}', prompt)}`;
+
+                const currentDraft = await generateWithFallback(c.env, draftPrompt);
+                await chunk(currentDraft); // Send draft preview
+
+                // Step 3: Refinement (Simplified 1 round for demo speed, can be loop)
+                await log("Phase 3: Adversarial Refinement (Round 1)...");
+                const p3 = prompts.critic;
+                const critiquePrompt = `${p3.system}\n\n${p3.user_template.replace('{prompt}', prompt).replace('{draft}', currentDraft)}`;
+
+                const critique = await generateWithFallback(c.env, critiquePrompt);
+                await log("🤔 Critic Feedback Received. Optimizing...");
+
+                const p4 = prompts.refiner;
+                const refinePrompt = `${p4.system}\n\n${p4.user_template.replace('{critique}', critique).replace('{draft}', currentDraft)}`;
+
+                const finalDraft = await generateWithFallback(c.env, refinePrompt);
+
+                await log("🏆 Perfection Achieved. Finalizing...");
+                await writer.write(encoder.encode(JSON.stringify({ type: 'final', content: finalDraft }) + '\n'));
+
+                // Save to KV
+                const taskId = Date.now().toString();
+                try {
+                    await c.env.TASKS.put(taskId, JSON.stringify({
+                        id: taskId,
+                        original: prompt,
+                        final: finalDraft,
+                        strategy: strategyText,
+                        timestamp: new Date().toISOString()
+                    }));
+                } catch (kvError: any) {
+                    console.error("KV Save Failed:", kvError);
+                    await log(`⚠️ Warning: Failed to save history: ${kvError.message}`);
+                }
+
+            } catch (e: any) {
+                console.error("Stream Error:", e);
+                // Send detailed error to frontend
+                const errorMessage = e.message || "Unknown Error";
+                const errorStack = e.stack || "";
+                await writer.write(encoder.encode(JSON.stringify({
+                    type: 'error',
+                    content: `System Error: ${errorMessage}. Check logs.`
+                }) + '\n'));
+            } finally {
+                await writer.close();
+            }
+        })());
+
+        return new Response(readable, {
+            headers: { 'Content-Type': 'text/event-stream' }
+        });
+
+    } catch (reqError: any) {
+        return c.json({ error: `Request Failed: ${reqError.message}` }, 500);
+    }
 });
 
 // 3. History API
