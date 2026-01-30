@@ -94,12 +94,32 @@ const App = () => {
       const decoder = new TextDecoder();
 
       if (reader) {
+        let buffer = '';
         while (true) {
           const { done, value } = await reader.read();
-          if (done) break;
+          if (done) {
+            // Process any remaining buffer
+            if (buffer.trim()) {
+              try {
+                const data = JSON.parse(buffer);
+                // Handle final data
+                if (data.type === 'log') setLogs(prev => [...prev, data.content]);
+                if (data.type === 'chunk') setFinalDraft(data.content);
+                if (data.type === 'final') {
+                  setFinalDraft(data.content);
+                  setCurrentStep(4);
+                  fetchHistory();
+                }
+              } catch (e) { console.error("Final buffer parse error", e); }
+            }
+            break;
+          }
 
-          const text = decoder.decode(value);
-          const lines = text.split('\n');
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split('\n');
+
+          // Keep the last line in the buffer as it might be incomplete
+          buffer = lines.pop() || '';
 
           for (const line of lines) {
             if (!line.trim()) continue;
@@ -118,6 +138,9 @@ const App = () => {
                 setFinalDraft(data.content);
                 setCurrentStep(4); // Complete
                 fetchHistory(); // Refresh history
+              }
+              if (data.type === 'error') {
+                setLogs(prev => [...prev, `❌ ${data.content}`]);
               }
             } catch (e) { }
           }
