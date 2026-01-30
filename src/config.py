@@ -20,7 +20,7 @@ class Config:
     # Models
     # User requested strictly gemini-2.5-pro
     GEMINI_MODEL_PRIMARY = os.getenv("GEMINI_MODEL", "gemini-2.5-pro") 
-    GEMINI_MODEL_FALLBACK = "gemini-2.5-pro" # Fallback also locked to 2.5 as requested
+    GEMINI_MODEL_FALLBACK = "gemini-2.5-flash" # Fallback also locked to 2.5 as requested
     VERTEX_MODEL_FALLBACK = "gemini-2.5-pro" 
 
     # Paths
