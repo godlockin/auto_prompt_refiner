@@ -45,7 +45,8 @@ const App = () => {
   const [finalDraft, setFinalDraft] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [history, setHistory] = useState<any[]>([]);
-  const [showHistory, setShowHistory] = useState(false);
+  // Configurable default via Cloudflare Env Var (VITE_DEFAULT_SHOW_HISTORY=true)
+  const [showHistory, setShowHistory] = useState(import.meta.env.VITE_DEFAULT_SHOW_HISTORY === 'true');
 
   // Progress Steps
   const steps = [
