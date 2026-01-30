@@ -19,7 +19,19 @@ This project offers two interfaces:
   * **Primary**: Google Gemini 2.0/3.0 (Precision)
   * **Fallback**: Vertex AI Gemini (Enterprise Stability) – *Automatic circuit breaker.*
 * **🌊 Streaming Experience**: Real-time visibility into the AI's "thought process".
+* **📜 Mission Log**: Sidebar history of previous refinements (Toggleable).
 * **🔌 Cloudflare Unified Deployment**: A single directory (`cloudflare/frontend`) that deploys both the UI and the Backend API to Cloudflare Pages.
+
+## ⚙️ App Configuration
+
+### Environment Variables (Cloudflare Pages)
+
+| Variable | Description | Required | Default |
+| :--- | :--- | :--- | :--- |
+| `GOOGLE_API_KEY` | Your Gemini API Key. | **Yes** | - |
+| `GEMINI_MODEL` | Specific model to use (e.g., `gemini-2.5-pro`). | No | `gemini-2.5-pro` |
+| `INVITE_CODE` | Optional password protection. | No | - |
+| `VITE_DEFAULT_SHOW_HISTORY` | Set to `true` to show Mission Log sidebar by default. | No | `false` |
 
 ## 🚀 Quick Start (Python CLI)
 

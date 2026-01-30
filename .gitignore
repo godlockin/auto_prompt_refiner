@@ -27,3 +27,4 @@ tasks/*
 
 
 sys_init/
+cloudflare/frontend/dist/
