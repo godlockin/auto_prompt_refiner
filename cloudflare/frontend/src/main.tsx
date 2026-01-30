@@ -88,7 +88,14 @@ const App = () => {
         body: JSON.stringify({ prompt })
       });
 
-      if (!res.ok) throw new Error(res.statusText);
+      if (!res.ok) {
+        let errorMessage = res.statusText;
+        try {
+          const errorData = await res.json() as any;
+          errorMessage = errorData.error || JSON.stringify(errorData);
+        } catch (e) { /* use default statusText */ }
+        throw new Error(errorMessage);
+      }
 
       const reader = res.body?.getReader();
       const decoder = new TextDecoder();
