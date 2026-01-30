@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import ReactDOM from 'react-dom/client';
 import ReactMarkdown from 'react-markdown';
-import { History, Download, Sparkles, Lock, Terminal } from 'lucide-react';
+import { History, Download, Sparkles, Lock, Terminal, Copy, FileText } from 'lucide-react';
 import './index.css';
 
 // --- Components ---
@@ -266,19 +266,35 @@ const App = () => {
             <div className="flex justify-between items-center mb-4">
               <h3 className="font-bold text-gray-200">Refined Output</h3>
               {finalDraft && (
-                <button
-                  onClick={() => {
-                    const blob = new Blob([finalDraft], { type: 'text/markdown' });
-                    const url = URL.createObjectURL(blob);
-                    const a = document.createElement('a');
-                    a.href = url;
-                    a.download = 'synthesis_prime_prompt.md';
-                    a.click();
-                  }}
-                  className="text-xs bg-gray-800 hover:bg-gray-700 px-3 py-1.5 rounded flex items-center gap-2 border border-gray-700"
-                >
-                  <Download className="w-3 h-3" /> Save .md
-                </button>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => navigator.clipboard.writeText(finalDraft.replace(/[#*`_]/g, ''))} // Simple strip
+                    className="text-xs bg-gray-800 hover:bg-gray-700 px-3 py-1.5 rounded flex items-center gap-2 border border-gray-700 transition"
+                    title="Copy Plain Text"
+                  >
+                    <Copy className="w-3 h-3" /> Copy
+                  </button>
+                  <button
+                    onClick={() => navigator.clipboard.writeText(finalDraft)}
+                    className="text-xs bg-gray-800 hover:bg-gray-700 px-3 py-1.5 rounded flex items-center gap-2 border border-gray-700 transition"
+                    title="Copy Markdown"
+                  >
+                    <FileText className="w-3 h-3" /> Copy MD
+                  </button>
+                  <button
+                    onClick={() => {
+                      const blob = new Blob([finalDraft], { type: 'text/markdown' });
+                      const url = URL.createObjectURL(blob);
+                      const a = document.createElement('a');
+                      a.href = url;
+                      a.download = 'synthesis_prime_prompt.md';
+                      a.click();
+                    }}
+                    className="text-xs bg-gray-800 hover:bg-gray-700 px-3 py-1.5 rounded flex items-center gap-2 border border-gray-700 transition"
+                  >
+                    <Download className="w-3 h-3" /> Save .md
+                  </button>
+                </div>
               )}
             </div>
             <div className="prose prose-invert prose-sm max-w-none bg-gray-900 p-6 rounded-xl border border-gray-800 min-h-[500px]">
