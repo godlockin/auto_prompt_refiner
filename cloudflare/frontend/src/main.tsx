@@ -46,7 +46,7 @@ const App = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [history, setHistory] = useState<any[]>([]);
   const [showHistory, setShowHistory] = useState(false);
-  
+
   // Progress Steps
   const steps = [
     "Inception & Strategy",
@@ -96,10 +96,10 @@ const App = () => {
         while (true) {
           const { done, value } = await reader.read();
           if (done) break;
-          
+
           const text = decoder.decode(value);
           const lines = text.split('\n');
-          
+
           for (const line of lines) {
             if (!line.trim()) continue;
             try {
@@ -118,7 +118,7 @@ const App = () => {
                 setCurrentStep(4); // Complete
                 fetchHistory(); // Refresh history
               }
-            } catch (e) {}
+            } catch (e) { }
           }
         }
       }
@@ -134,15 +134,21 @@ const App = () => {
   return (
     <div className="flex h-screen bg-gray-950 text-gray-100 font-sans overflow-hidden">
       {/* Sidebar (History) */}
-      <div className={`fixed inset-y-0 left-0 w-80 bg-gray-900 border-r border-gray-800 transform transition-transform duration-300 z-20 ${showHistory ? 'translate-x-0' : '-translate-x-full'} md:relative md:translate-x-0`}>
-        <div className="p-4 border-b border-gray-800 flex justify-between items-center">
+      <div className={`
+        fixed inset-y-0 left-0 w-80 bg-gray-900 border-r border-gray-800 transform transition-transform duration-300 z-20 
+        ${showHistory ? 'translate-x-0' : '-translate-x-full'} 
+        md:relative
+        ${showHistory ? 'md:w-80 md:translate-x-0' : 'md:w-0 md:-translate-x-0 md:border-r-0'}
+        md:transition-all
+      `}>
+        <div className="p-4 border-b border-gray-800 flex justify-between items-center whitespace-nowrap overflow-hidden">
           <h2 className="font-bold text-lg flex items-center gap-2">
             <History className="w-5 h-5 text-purple-400" />
             Mission Log
           </h2>
           <button onClick={() => fetchHistory()} className="text-gray-400 hover:text-white">↻</button>
         </div>
-        <div className="overflow-y-auto h-[calc(100vh-65px)] p-2 space-y-2">
+        <div className={`overflow-y-auto h-[calc(100vh-65px)] p-2 space-y-2 whitespace-nowrap ${showHistory ? 'opacity-100' : 'opacity-0'} transition-opacity duration-300`}>
           {history.map(task => (
             <div key={task.id} onClick={() => setFinalDraft(task.final)} className="p-3 bg-gray-800/50 hover:bg-gray-800 rounded-lg cursor-pointer border border-transparent hover:border-purple-500/30 transition">
               <div className="text-sm font-medium truncate text-gray-200">{task.original}</div>
@@ -154,27 +160,29 @@ const App = () => {
       </div>
 
       {/* Main Content */}
-      <div className="flex-1 flex flex-col h-full w-full">
+      <div className="flex-1 flex flex-col h-full w-full min-w-0">
         {/* Header */}
         <header className="h-16 border-b border-gray-800 flex items-center px-6 bg-gray-900/50 backdrop-blur justify-between">
           <div className="flex items-center gap-3">
-            <button className="md:hidden mr-2" onClick={() => setShowHistory(!showHistory)}><History /></button>
-            <div className="bg-purple-600 p-1.5 rounded-lg">
+            <button className="text-gray-400 hover:text-white transition-colors" onClick={() => setShowHistory(!showHistory)}>
+              <History className={`w-5 h-5 ${showHistory ? 'text-purple-400' : ''}`} />
+            </button>
+            <div className="bg-purple-600 p-1.5 rounded-lg ml-2">
               <Sparkles className="w-5 h-5 text-white" />
             </div>
             <h1 className="font-bold text-xl tracking-tight">Synthesis Prime <span className="text-xs font-normal text-purple-400 bg-purple-900/30 px-2 py-0.5 rounded ml-2">CLOUDFLARE</span></h1>
           </div>
           <div className="flex items-center gap-4">
-             {/* Progress Steps Indicator */}
-             <div className="hidden md:flex items-center gap-2 text-xs">
-                {steps.map((step, idx) => (
-                  <div key={idx} className={`flex items-center gap-1 ${idx <= currentStep ? 'text-purple-400' : 'text-gray-600'}`}>
-                    <div className={`w-2 h-2 rounded-full ${idx <= currentStep ? 'bg-purple-400' : 'bg-gray-700'}`}></div>
-                    <span>{step}</span>
-                    {idx < steps.length - 1 && <div className="w-4 h-px bg-gray-800 mx-1"></div>}
-                  </div>
-                ))}
-             </div>
+            {/* Progress Steps Indicator */}
+            <div className="hidden md:flex items-center gap-2 text-xs">
+              {steps.map((step, idx) => (
+                <div key={idx} className={`flex items-center gap-1 ${idx <= currentStep ? 'text-purple-400' : 'text-gray-600'}`}>
+                  <div className={`w-2 h-2 rounded-full ${idx <= currentStep ? 'bg-purple-400' : 'bg-gray-700'}`}></div>
+                  <span>{step}</span>
+                  {idx < steps.length - 1 && <div className="w-4 h-px bg-gray-800 mx-1"></div>}
+                </div>
+              ))}
+            </div>
           </div>
         </header>
 
@@ -192,8 +200,8 @@ const App = () => {
                   placeholder="Describe your prompt requirements..."
                 />
                 <div className="mt-3 flex justify-end">
-                  <button 
-                    onClick={runRefinement} 
+                  <button
+                    onClick={runRefinement}
                     disabled={isLoading}
                     className={`px-6 py-2 rounded-lg font-medium flex items-center gap-2 ${isLoading ? 'bg-gray-700 cursor-not-allowed' : 'bg-purple-600 hover:bg-purple-700 text-white'}`}
                   >
@@ -227,7 +235,7 @@ const App = () => {
             <div className="flex justify-between items-center mb-4">
               <h3 className="font-bold text-gray-200">Refined Output</h3>
               {finalDraft && (
-                <button 
+                <button
                   onClick={() => {
                     const blob = new Blob([finalDraft], { type: 'text/markdown' });
                     const url = URL.createObjectURL(blob);
