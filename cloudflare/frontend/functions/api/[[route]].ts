@@ -194,8 +194,66 @@ app.post('/api/refine', async (c) => {
 });
 
 // 4. MCP API Implementation
-app.get('/api/mcp', (c) => {
-    return c.text('MCP JSON-RPC Endpoint Active. Please use POST requests with JSON-RPC 2.0 payload.');
+
+// GET: Establish SSE Connection (for clients that require SSE Transport)
+app.get('/api/mcp', async (c) => {
+    // If Accept header is not event-stream, return simple status (for health checks)
+    const accept = c.req.header('Accept');
+    if (accept && !accept.includes('text/event-stream')) {
+        return c.text('MCP JSON-RPC Endpoint Active. Please use POST requests with JSON-RPC 2.0 payload.');
+    }
+
+    // Initialize SSE Stream
+    const { readable, writable } = new TransformStream();
+    const writer = writable.getWriter();
+    const encoder = new TextEncoder();
+
+    // Generate Session ID
+    const sessionId = crypto.randomUUID();
+
+    c.executionCtx.waitUntil((async () => {
+        try {
+            // Send initial endpoint event (tell client where to POST)
+            // Note: For Cloudflare Pages, we use the current URL as base + sessionId query param
+            const postUrl = `/api/mcp?sessionId=${sessionId}`;
+            await writer.write(encoder.encode(`event: endpoint\ndata: ${postUrl}\n\n`));
+
+            // Polling Loop for responses
+            // Limit execution time to avoid platform limits (e.g. 30s-1m typically safe for standard requests, 
+            // but for SSE we might need to rely on client reconnection or just handle short sessions)
+            const startTime = Date.now();
+            while (Date.now() - startTime < 50000) { // Run for ~50s (Cloudflare free limit is usually 10ms CPU but longer wall time)
+                // Check KV for messages
+                // Key format: mcp:msg:{sessionId}
+                // We use a list approach or simple single message key. For simplicity: simple key.
+                const msgKey = `mcp:msg:${sessionId}`;
+                const message = await c.env.TASKS.get(msgKey);
+
+                if (message) {
+                    // Send message via SSE
+                    await writer.write(encoder.encode(`event: message\ndata: ${message}\n\n`));
+                    // Delete processed message
+                    await c.env.TASKS.delete(msgKey);
+                }
+
+                // Sleep 200ms
+                await new Promise(resolve => setTimeout(resolve, 200));
+            }
+        } catch (e) {
+            console.error("SSE Error:", e);
+        } finally {
+            await writer.close();
+        }
+    })());
+
+    return new Response(readable, {
+        headers: {
+            'Content-Type': 'text/event-stream',
+            'Cache-Control': 'no-cache',
+            'Connection': 'keep-alive',
+            'X-Session-ID': sessionId
+        }
+    });
 });
 
 app.post('/api/mcp', async (c) => {
@@ -219,15 +277,18 @@ app.post('/api/mcp', async (c) => {
 
     try {
         const body = await c.req.json();
+        const sessionId = c.req.query('sessionId');
         
         // Basic JSON-RPC 2.0 Validation
         if (body.jsonrpc !== '2.0') {
             return c.json({ jsonrpc: "2.0", error: { code: -32600, message: "Invalid Request" }, id: body.id }, 400);
         }
 
+        let response = null;
+
         // Handle 'tools/list'
         if (body.method === 'tools/list') {
-            return c.json({
+            response = {
                 jsonrpc: "2.0",
                 result: {
                     tools: [{
@@ -246,79 +307,96 @@ app.post('/api/mcp', async (c) => {
                     }]
                 },
                 id: body.id
-            });
+            };
         }
-
         // Handle 'tools/call'
-        if (body.method === 'tools/call') {
+        else if (body.method === 'tools/call') {
             const { name, arguments: args } = body.params;
 
             if (name === 'refine_prompt') {
                 const prompt = args.prompt;
                 if (!prompt) {
-                    return c.json({ jsonrpc: "2.0", error: { code: -32602, message: "Missing 'prompt' argument" }, id: body.id });
+                    response = { jsonrpc: "2.0", error: { code: -32602, message: "Missing 'prompt' argument" }, id: body.id };
+                } else {
+                    // Execute Refinement
+                    // Step 1: Strategy
+                    const p1 = prompts.strategist;
+                    const strategyPrompt = `${p1.system}\n\n${p1.user_template.replace('{prompt}', prompt)}`;
+                    const strategyText = await generateWithFallback(c.env, strategyPrompt);
+
+                    // Step 2: Draft
+                    const p2 = prompts.architect;
+                    const draftPrompt = `${p2.system}\n\n${p2.user_template.replace('{strategy}', strategyText).replace('{prompt}', prompt)}`;
+                    const currentDraft = await generateWithFallback(c.env, draftPrompt);
+
+                    // Step 3: Critique
+                    const p3 = prompts.critic;
+                    const critiquePrompt = `${p3.system}\n\n${p3.user_template.replace('{prompt}', prompt).replace('{draft}', currentDraft)}`;
+                    const critique = await generateWithFallback(c.env, critiquePrompt);
+
+                    // Step 4: Refine
+                    const p4 = prompts.refiner;
+                    const refinePrompt = `${p4.system}\n\n${p4.user_template.replace('{critique}', critique).replace('{draft}', currentDraft)}`;
+                    const finalDraft = await generateWithFallback(c.env, refinePrompt);
+
+                    // Save to KV
+                    const taskId = Date.now().toString();
+                    c.executionCtx.waitUntil(c.env.TASKS.put(taskId, JSON.stringify({
+                        id: taskId,
+                        original: prompt,
+                        final: finalDraft,
+                        strategy: strategyText,
+                        timestamp: new Date().toISOString(),
+                        source: 'mcp'
+                    })));
+
+                    response = {
+                        jsonrpc: "2.0",
+                        result: {
+                            content: [{
+                                type: "text",
+                                text: finalDraft
+                            }]
+                        },
+                        id: body.id
+                    };
                 }
-
-                // Execute Refinement (Non-streaming for MCP)
-                // Reuse the generation logic but await the final result
-                
-                // Step 1: Strategy
-                const p1 = prompts.strategist;
-                const strategyPrompt = `${p1.system}\n\n${p1.user_template.replace('{prompt}', prompt)}`;
-                const strategyText = await generateWithFallback(c.env, strategyPrompt);
-
-                // Step 2: Draft
-                const p2 = prompts.architect;
-                const draftPrompt = `${p2.system}\n\n${p2.user_template.replace('{strategy}', strategyText).replace('{prompt}', prompt)}`;
-                const currentDraft = await generateWithFallback(c.env, draftPrompt);
-
-                // Step 3: Critique
-                const p3 = prompts.critic;
-                const critiquePrompt = `${p3.system}\n\n${p3.user_template.replace('{prompt}', prompt).replace('{draft}', currentDraft)}`;
-                const critique = await generateWithFallback(c.env, critiquePrompt);
-
-                // Step 4: Refine
-                const p4 = prompts.refiner;
-                const refinePrompt = `${p4.system}\n\n${p4.user_template.replace('{critique}', critique).replace('{draft}', currentDraft)}`;
-                const finalDraft = await generateWithFallback(c.env, refinePrompt);
-
-                // Save to KV (Optional for MCP, but good for history)
-                const taskId = Date.now().toString();
-                c.executionCtx.waitUntil(c.env.TASKS.put(taskId, JSON.stringify({
-                    id: taskId,
-                    original: prompt,
-                    final: finalDraft,
-                    strategy: strategyText,
-                    timestamp: new Date().toISOString(),
-                    source: 'mcp'
-                })));
-
-                return c.json({
-                    jsonrpc: "2.0",
-                    result: {
-                        content: [{
-                            type: "text",
-                            text: finalDraft
-                        }]
-                    },
-                    id: body.id
-                });
+            } else {
+                response = { jsonrpc: "2.0", error: { code: -32601, message: "Method not found" }, id: body.id };
             }
-            
-            return c.json({ jsonrpc: "2.0", error: { code: -32601, message: "Method not found" }, id: body.id });
+        }
+        else {
+            response = { jsonrpc: "2.0", error: { code: -32601, message: "Method not supported" }, id: body.id };
         }
 
-        return c.json({ jsonrpc: "2.0", error: { code: -32601, message: "Method not supported" }, id: body.id });
+        // --- Response Handling ---
+        // If Session ID is present, write to KV for SSE pickup
+        if (sessionId) {
+            const msgKey = `mcp:msg:${sessionId}`;
+            await c.env.TASKS.put(msgKey, JSON.stringify(response));
+            return c.text('Accepted', 202);
+        } else {
+            // Otherwise return direct JSON (HTTP Transport)
+            return c.json(response);
+        }
 
     } catch (e: any) {
-        return c.json({
+        const errorResponse = {
             jsonrpc: "2.0",
             error: {
                 code: -32000,
                 message: `Internal Error: ${e.message}`
             },
             id: null
-        }, 500);
+        };
+        
+        // Try to return error via appropriate channel
+        const sessionId = c.req.query('sessionId');
+        if (sessionId) {
+             await c.env.TASKS.put(`mcp:msg:${sessionId}`, JSON.stringify(errorResponse));
+             return c.text('Error Queued', 202);
+        }
+        return c.json(errorResponse, 500);
     }
 });
 
