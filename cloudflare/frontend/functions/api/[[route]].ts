@@ -194,6 +194,10 @@ app.post('/api/refine', async (c) => {
 });
 
 // 4. MCP API Implementation
+app.get('/api/mcp', (c) => {
+    return c.text('MCP JSON-RPC Endpoint Active. Please use POST requests with JSON-RPC 2.0 payload.');
+});
+
 app.post('/api/mcp', async (c) => {
     // Check Authorization: Bearer <INVITE_CODE>
     const authHeader = c.req.header('Authorization');
