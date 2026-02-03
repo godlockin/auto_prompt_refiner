@@ -88,3 +88,29 @@ npx wrangler pages deploy dist --project-name synthesis-prime
 *   **Auth**: Invite Code protection via Middleware.
 *   **Streaming**: Real-time "Cognitive Trace" logs.
 *   **History**: Persistent mission logs via Cloudflare KV.
+
+## 🤖 Use as MCP Tool (Cursor/Trae Integration)
+
+Synthesis Prime can be used as a **Remote Tool** in AI IDEs like Cursor or Trae via the Model Context Protocol (MCP).
+
+### 1. Configuration
+Add the following to your IDE's MCP settings (e.g., `~/.cursor/mcp.json` or project-specific config):
+
+```json
+{
+  "mcpServers": {
+    "synthesis-prime": {
+      "url": "https://<YOUR_WORKER_URL>/api/mcp",
+      "headers": {
+        "Authorization": "Bearer <YOUR_INVITE_CODE>"
+      }
+    }
+  }
+}
+```
+
+### 2. Usage
+Once configured, you can ask your IDE Agent:
+> "Use the refine_prompt tool to optimize this prompt: 'Help me write a snake game'"
+
+The agent will call your Cloudflare Worker, execute the refinement protocol, and return the SOTA result directly in your chat.

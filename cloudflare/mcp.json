@@ -1,0 +1,10 @@
+{
+  "mcpServers": {
+    "synthesis-prime": {
+      "url": "https://<YOUR_WORKER_URL>/api/mcp",
+      "headers": {
+        "Authorization": "Bearer <YOUR_INVITE_CODE>"
+      }
+    }
+  }
+}
