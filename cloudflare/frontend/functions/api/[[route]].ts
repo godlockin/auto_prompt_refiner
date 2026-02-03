@@ -286,8 +286,39 @@ app.post('/api/mcp', async (c) => {
 
         let response = null;
 
+        // Handle 'initialize' (Mandatory for MCP)
+        if (body.method === 'initialize') {
+            response = {
+                jsonrpc: "2.0",
+                result: {
+                    protocolVersion: "2024-11-05", // Current MCP version
+                    capabilities: {
+                        tools: {
+                            listChanged: false
+                        }
+                    },
+                    serverInfo: {
+                        name: "synthesis-prime",
+                        version: "1.0.0"
+                    }
+                },
+                id: body.id
+            };
+        }
+        // Handle 'notifications/initialized' (Client confirmation)
+        else if (body.method === 'notifications/initialized') {
+            // No response needed for notifications, but we acknowledge receipt if ID is present
+            // Usually notifications don't have IDs, but if it does, return null result
+            if (body.id) {
+                response = { jsonrpc: "2.0", result: null, id: body.id };
+            }
+        }
+        // Handle 'ping' (Health check)
+        else if (body.method === 'ping') {
+             response = { jsonrpc: "2.0", result: {}, id: body.id };
+        }
         // Handle 'tools/list'
-        if (body.method === 'tools/list') {
+        else if (body.method === 'tools/list') {
             response = {
                 jsonrpc: "2.0",
                 result: {
