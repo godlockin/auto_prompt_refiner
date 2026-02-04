@@ -192,3 +192,23 @@ export interface HealthStatus {
     prompts: { status: string; count: number };
   };
 }
+
+// ============================================================================
+// Model Selector Types
+// ============================================================================
+
+export interface ModelConfig {
+  name: string;
+  costPerToken: number;
+  latencyFactor: number;
+  qualityScore: number;
+}
+
+export interface TaskModelStrategy {
+  strategistModel: 'fast' | 'pro' | 'ultra';
+  architectModel: 'fast' | 'pro' | 'ultra';
+  criticModel: 'fast' | 'pro' | 'ultra';
+  refinerModel: 'fast' | 'pro' | 'ultra';
+  expertModels: Record<string, 'fast' | 'pro' | 'ultra'>;
+  useUltraForRefiner: boolean;
+}

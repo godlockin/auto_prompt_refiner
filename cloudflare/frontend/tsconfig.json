@@ -25,7 +25,10 @@
         "types": [
             "@cloudflare/workers-types",
             "vite/client"
-        ]
+        ],
+        /* Allow dynamic imports for runtime-only packages */
+        "allowSyntheticDefaultImports": true,
+        "esModuleInterop": true
     },
     "include": [
         "src",

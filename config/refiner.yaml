@@ -1,0 +1,116 @@
+version: "1.0"
+
+agents:
+  strategist:
+    type: core
+    model: fast
+    priority: 10
+    enabled: true
+
+  architect:
+    type: core
+    model: fast
+    priority: 20
+    enabled: true
+
+  critic:
+    type: core
+    model: fast
+    priority: 30
+    enabled: true
+
+  refiner:
+    type: core
+    model: pro
+    priority: 40
+    enabled: true
+
+  code_expert:
+    type: code
+    model: pro
+    priority: 50
+    enabled: true
+    trigger:
+      task_types: [code, technical]
+
+  security_expert:
+    type: security
+    model: pro
+    priority: 60
+    enabled: true
+    trigger:
+      require_security_review: true
+
+  performance_expert:
+    type: performance
+    model: pro
+    priority: 70
+    enabled: true
+    trigger:
+      require_performance_review: true
+
+  style_expert:
+    type: writing
+    model: fast
+    priority: 80
+    enabled: true
+    trigger:
+      task_types: [writing, creative]
+
+  data_expert:
+    type: data
+    model: pro
+    priority: 90
+    enabled: true
+    trigger:
+      task_types: [analysis]
+
+classifier:
+  keyword_weights:
+    code:
+      def: 2.0
+      class: 2.0
+      python: 2.0
+      javascript: 2.0
+      typescript: 2.0
+      function: 1.5
+      algorithm: 1.5
+
+    writing:
+      write: 1.5
+      story: 2.0
+      essay: 2.0
+      article: 1.5
+      narrative: 2.0
+
+    data:
+      analyze: 2.0
+      data: 1.5
+      statistics: 2.0
+      metrics: 2.0
+      visualization: 2.0
+
+    creative:
+      creative: 2.0
+      design: 1.5
+      art: 2.0
+      imagine: 2.0
+
+    technical:
+      architecture: 2.0
+      technical: 1.5
+      infra: 2.0
+      deployment: 2.0
+
+    documentation:
+      documentation: 2.0
+      docs: 1.5
+      readme: 2.0
+      guide: 1.5
+
+refiner:
+  default_model: fast
+  max_rounds: 3
+  min_rounds: 1
+  early_termination: true
+  early_termination_keyword: NO_ISSUES_FOUND

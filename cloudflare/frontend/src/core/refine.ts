@@ -16,11 +16,10 @@ import {
   TaskContext,
   RefinementResult,
   ProgressEvent,
-  TaskTypeValue,
 } from './types';
-import { TaskClassifier } from './classifier';
-import { DynamicAgentOrchestrator, getAgentsForTask } from './orchestrator';
-import { ModelSelector, selectModel, getTaskModelStrategy } from './model_selector';
+import { TaskClassifier, classifyTask } from './classifier';
+import { getAgentsForTask } from './orchestrator';
+import { selectModel } from './model_selector';
 
 // ============================================================================
 // Prompts Loading
@@ -31,15 +30,16 @@ interface PromptConfig {
   user_template: string;
 }
 
-const PROMPTS_CACHE: Record<string, PromptConfig> | null = null;
+let promptsCache: Record<string, PromptConfig> | null = null;
 
 async function loadPrompts(): Promise<Record<string, PromptConfig>> {
-  if (PROMPTS_CACHE) return PROMPTS_CACHE;
+  if (promptsCache) return promptsCache;
 
   try {
     const response = await fetch('/functions/prompts.json');
     if (!response.ok) throw new Error('Failed to load prompts');
-    const prompts = await response.json();
+    const prompts = await response.json() as Record<string, PromptConfig>;
+    promptsCache = prompts;
     return prompts;
   } catch (error) {
     console.error('Failed to load prompts:', error);
@@ -53,13 +53,6 @@ async function loadPrompts(): Promise<Record<string, PromptConfig>> {
 
 export class PromptRefiner {
   private prompts: Record<string, PromptConfig> | null = null;
-  private classifier: TaskClassifier;
-  private orchestrator: DynamicAgentOrchestrator;
-
-  constructor() {
-    this.classifier = new TaskClassifier();
-    this.orchestrator = new DynamicAgentOrchestrator();
-  }
 
   private async getPrompts(): Promise<Record<string, PromptConfig>> {
     if (!this.prompts) {
@@ -69,9 +62,7 @@ export class PromptRefiner {
   }
 
   async analyzeTask(prompt: string): Promise<TaskContext> {
-    const prompts = await this.getPrompts();
-    const { taskType, complexity } = this.classifier.classify(prompt);
-
+    const { taskType, complexity } = classifyTask(prompt);
     const agents = getAgentsForTask(taskType, complexity, prompt);
 
     return {
@@ -79,6 +70,9 @@ export class PromptRefiner {
       complexity,
       agents,
       originalPrompt: prompt,
+      strategy: '',
+      currentDraft: '',
+      history: [],
     };
   }
 
@@ -103,7 +97,7 @@ export class PromptRefiner {
     return {
       originalPrompt: userPrompt,
       finalPrompt: finalDraft,
-      taskType: context.taskType.value as string,
+      taskType: String(context.taskType),
       complexity: context.complexity.score,
       modelUsed: context.complexity.recommendedModel,
       roundsCompleted: 0,
@@ -122,7 +116,7 @@ export class PromptRefiner {
       phase: 'analyze',
       message: 'Analyzing task type and complexity...',
       data: {
-        taskType: context.taskType.value as string,
+        taskType: String(context.taskType),
         complexity: context.complexity.score,
         model: context.complexity.recommendedModel,
         rounds: context.complexity.estimatedRounds,
@@ -373,7 +367,6 @@ export class PromptRefiner {
     }
 
     const systemPrompt = promptConfig.system;
-    const template = promptConfig.user_template;
 
     let promptText: string;
 
@@ -393,7 +386,8 @@ export class PromptRefiner {
       return await this.callLLM(promptText, model);
     } catch (error) {
       console.error(`Agent ${agentName} failed:`, error);
-      return `[Error in ${agentName}: ${error instanceof Error ? error.message : 'Unknown error'}]`;
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      return `[Error in ${agentName}: ${errorMessage}]`;
     }
   }
 
@@ -410,7 +404,10 @@ export class PromptRefiner {
     }
 
     const data = await response.json();
-    return data.result || data.text || '';
+    if (data && typeof data === 'object') {
+      return (data as Record<string, unknown>).result as string || (data as Record<string, unknown>).text as string || '';
+    }
+    return '';
   }
 
   async healthCheck(): Promise<{ status: string; promptsLoaded: boolean }> {
@@ -453,11 +450,4 @@ export function getModelForAgent(
   complexity: TaskComplexity,
 ): 'fast' | 'pro' | 'ultra' {
   return selectModel(agentName, taskType, complexity);
-}
-
-export function getStrategy(
-  taskType: TaskType,
-  complexity: TaskComplexity,
-) {
-  return getTaskModelStrategy(taskType, complexity);
 }
